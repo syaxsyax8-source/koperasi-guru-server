@@ -1,9 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import axios from 'axios'
+import { ref, push, onValue, off, set, get as fbGet, update } from 'firebase/database'
+import { db } from '../firebase'
 import { PRODUCTS } from '../utils/data'
-
-const API = (import.meta.env.VITE_SERVER_URL || '') + '/api'
 
 // ── AUTH STORE ────────────────────────────────────────────
 export const useAuthStore = create(
@@ -22,35 +21,20 @@ export const useCartStore = create(
   persist(
     (set, get) => ({
       items: [],
-
       addItem: (product) => {
         const items = get().items
         const existing = items.find(i => i.productId === product.id)
         if (existing) {
           set({ items: items.map(i => i.productId === product.id ? { ...i, qty: i.qty + 1 } : i) })
         } else {
-          set({
-            items: [...items, {
-              productId: product.id,
-              name: product.name,
-              price: product.price,
-              qty: 1,
-              img: product.img,
-              unit: product.unit,
-            }]
-          })
+          set({ items: [...items, { productId: product.id, name: product.name, price: product.price, qty: 1, img: product.img, unit: product.unit }] })
         }
       },
-
       removeItem: (productId) => set({ items: get().items.filter(i => i.productId !== productId) }),
-
       changeQty: (productId, delta) => {
-        const items = get().items
-          .map(i => i.productId === productId ? { ...i, qty: i.qty + delta } : i)
-          .filter(i => i.qty > 0)
+        const items = get().items.map(i => i.productId === productId ? { ...i, qty: i.qty + delta } : i).filter(i => i.qty > 0)
         set({ items })
       },
-
       clearCart: () => set({ items: [] }),
     }),
     { name: 'koperasi-cart' }
@@ -63,22 +47,28 @@ export const useStockStore = create((set, get) => ({
 
   setStock: (stock) => set({ stock }),
 
+  fetchStock: async () => {
+    try {
+      const snap = await fbGet(ref(db, 'stock'))
+      if (snap.exists()) {
+        const data = snap.val()
+        // Merge dengan default stock
+        const merged = { ...Object.fromEntries(PRODUCTS.map(p => [p.id, p.stock])), ...data }
+        set({ stock: merged })
+      }
+    } catch { /* pakai default */ }
+  },
+
   updateStock: async (productId, qty) => {
     set({ stock: { ...get().stock, [productId]: parseInt(qty) } })
-    try { await axios.put(`${API}/stock/${productId}`, { qty }, { timeout: 3000 }) } catch { /* keep local */ }
+    try { await set(ref(db, `stock/${productId}`), parseInt(qty)) } catch { /* keep local */ }
   },
 
   restock: async (productId, amount = 50) => {
     const cur = get().stock[productId] || 0
-    set({ stock: { ...get().stock, [productId]: cur + amount } })
-    try { await axios.patch(`${API}/stock/${productId}/restock`, { amount }, { timeout: 3000 }) } catch { /* keep local */ }
-  },
-
-  fetchStock: async () => {
-    try {
-      const res = await axios.get(`${API}/stock`, { timeout: 3000 })
-      if (res.data && Object.keys(res.data).length > 0) set({ stock: res.data })
-    } catch { /* use default */ }
+    const newQty = cur + amount
+    set({ stock: { ...get().stock, [productId]: newQty } })
+    try { await set(ref(db, `stock/${productId}`), newQty) } catch { /* keep local */ }
   },
 }))
 
@@ -90,64 +80,90 @@ export const useTxStore = create(
       loading: false,
 
       fetch: async () => {
+        set({ loading: true })
         try {
-          const res = await axios.get(`${API}/transactions`, { timeout: 4000 })
-          if (Array.isArray(res.data)) set({ transactions: res.data })
-        } catch {
-          // keep local
-        }
+          const snap = await fbGet(ref(db, 'transactions'))
+          if (snap.exists()) {
+            const data = snap.val()
+            const txs = Object.values(data).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            set({ transactions: txs })
+          }
+        } catch { /* keep local */ }
+        set({ loading: false })
       },
 
       fetchByGuru: async (guruId) => {
         try {
-          const res = await axios.get(`${API}/transactions/${guruId}`, { timeout: 4000 })
-          if (Array.isArray(res.data)) {
-            // Merge server data dengan local-only entries
-            const serverIds = new Set(res.data.map(t => t.id))
-            const localOnly = get().transactions.filter(t => t._localOnly && !serverIds.has(t.id))
-            set({ transactions: [...res.data, ...localOnly] })
+          const snap = await fbGet(ref(db, 'transactions'))
+          if (snap.exists()) {
+            const data = snap.val()
+            const txs = Object.values(data)
+              .filter(t => t.guruId === guruId)
+              .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            set({ transactions: txs })
           }
-        } catch {
-          // keep local
-        }
+        } catch { /* keep local */ }
       },
 
-      // ────────────────────────────────────────────────────
-      // checkout: SELALU coba POST ke server dulu supaya
-      // Socket.io bisa emit notifikasi real-time ke admin.
-      // Kalau server tidak aktif → fallback simpan lokal.
-      // ────────────────────────────────────────────────────
+      // Checkout: simpan ke Firebase → admin dapat real-time otomatis
       checkout: async (payload) => {
-        // Coba kirim ke server (ini yang trigger Socket.io ke admin)
-        try {
-          const res = await axios.post(`${API}/transactions`, payload, { timeout: 6000 })
-          const tx = res.data?.transaction
-          if (tx) {
-            // Sukses via server — simpan ke local store juga
-            set({ transactions: [tx, ...get().transactions] })
-            return { success: true, transaction: tx, via: 'server' }
-          }
-        } catch (err) {
-          // Server tidak aktif — fallback ke local
-          console.warn('[Checkout] Server tidak aktif, simpan lokal:', err.message)
-        }
-
-        // ── FALLBACK: simpan lokal tanpa server ──
-        // Notifikasi real-time ke admin tidak akan muncul
-        // (karena tidak ada server yang emit Socket.io),
-        // tapi checkout tetap berhasil untuk guru.
-        const localTx = {
-          id: 'TX-LOCAL-' + Date.now(),
+        const now = new Date()
+        const tx = {
           ...payload,
           status: 'selesai',
-          createdAt: new Date().toISOString(),
-          _localOnly: true,
+          createdAt: now.toISOString(),
+          month: now.getMonth(),
+          year: now.getFullYear(),
         }
-        set({ transactions: [localTx, ...get().transactions] })
-        return { success: true, transaction: localTx, via: 'local' }
+
+        try {
+          // Push ke Firebase → generate ID unik otomatis
+          const newRef = push(ref(db, 'transactions'))
+          tx.id = newRef.key
+          await set(newRef, tx)
+
+          // Update stok di Firebase
+          if (Array.isArray(tx.items)) {
+            const stockSnap = await fbGet(ref(db, 'stock'))
+            const currentStock = stockSnap.exists() ? stockSnap.val() : {}
+            const updates = {}
+            tx.items.forEach(item => {
+              const cur = currentStock[item.productId] ?? (PRODUCTS.find(p => p.id === item.productId)?.stock || 0)
+              updates[`stock/${item.productId}`] = Math.max(0, cur - item.qty)
+            })
+            await update(ref(db), updates)
+          }
+
+          // Push notifikasi ke Firebase → admin baca real-time
+          const notif = {
+            type: 'new_order',
+            title: 'Pesanan Baru Masuk! 🛒',
+            message: `${tx.guruName} checkout ${tx.items?.length || 0} produk senilai Rp ${tx.total?.toLocaleString('id-ID')}`,
+            guruId: tx.guruId,
+            guruName: tx.guruName,
+            txId: tx.id,
+            total: tx.total,
+            method: tx.method,
+            read: false,
+            createdAt: now.toISOString(),
+          }
+          const notifRef = push(ref(db, 'notifications'))
+          await set(notifRef, { ...notif, id: notifRef.key })
+
+          // Simpan ke local store juga
+          set({ transactions: [tx, ...get().transactions] })
+          return { success: true, transaction: tx, via: 'firebase' }
+
+        } catch (err) {
+          console.error('[Checkout Firebase error]', err)
+          // Fallback lokal
+          tx.id = 'TX-LOCAL-' + Date.now()
+          tx._localOnly = true
+          set({ transactions: [tx, ...get().transactions] })
+          return { success: true, transaction: tx, via: 'local' }
+        }
       },
 
-      // Dipanggil dari Socket.io saat admin terima event baru
       addLocal: (tx) => {
         const exists = get().transactions.find(t => t.id === tx.id)
         if (!exists) set({ transactions: [tx, ...get().transactions] })
@@ -155,18 +171,15 @@ export const useTxStore = create(
 
       getMonthTotal: (guruId, month, year) => {
         return get().transactions
-          .filter(t =>
-            t.guruId === guruId &&
-            t.status === 'selesai' &&
+          .filter(t => t.guruId === guruId && t.status === 'selesai' &&
             new Date(t.createdAt).getMonth() === month &&
-            new Date(t.createdAt).getFullYear() === year
-          )
+            new Date(t.createdAt).getFullYear() === year)
           .reduce((s, t) => s + (t.total || 0), 0)
       },
     }),
     {
       name: 'koperasi-transactions',
-      partialize: (state) => ({ transactions: state.transactions.slice(0, 300) }),
+      partialize: (state) => ({ transactions: state.transactions.slice(0, 200) }),
     }
   )
 )
@@ -175,17 +188,41 @@ export const useTxStore = create(
 export const useNotifStore = create((set, get) => ({
   notifications: [],
   unread: 0,
+  _unsubscribe: null,
+
+  // Listen real-time dari Firebase — dipanggil di AdminLayout
+  listenRealtime: () => {
+    const notifRef = ref(db, 'notifications')
+    const unsubscribe = onValue(notifRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.val()
+        const notifs = Object.values(data)
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .slice(0, 100)
+        set({ notifications: notifs, unread: notifs.filter(n => !n.read).length })
+      }
+    })
+    set({ _unsubscribe: unsubscribe })
+    return unsubscribe
+  },
+
+  stopListening: () => {
+    const unsub = get()._unsubscribe
+    if (unsub) { off(ref(db, 'notifications')); set({ _unsubscribe: null }) }
+  },
 
   fetch: async () => {
     try {
-      const res = await axios.get(`${API}/notifications`, { timeout: 3000 })
-      const notifs = res.data
-      set({ notifications: notifs, unread: notifs.filter(n => !n.read).length })
+      const snap = await fbGet(ref(db, 'notifications'))
+      if (snap.exists()) {
+        const notifs = Object.values(snap.val())
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        set({ notifications: notifs, unread: notifs.filter(n => !n.read).length })
+      }
     } catch { /* offline */ }
   },
 
   add: (notif) => {
-    // Cegah duplikat
     const exists = get().notifications.find(n => n.id === notif.id)
     if (exists) return
     const notifications = [notif, ...get().notifications].slice(0, 100)
@@ -195,12 +232,13 @@ export const useNotifStore = create((set, get) => ({
   markRead: async (id) => {
     const notifications = get().notifications.map(n => n.id === id ? { ...n, read: true } : n)
     set({ notifications, unread: notifications.filter(n => !n.read).length })
-    try { await axios.patch(`${API}/notifications/${id}/read`, {}, { timeout: 2000 }) } catch { /* offline */ }
+    try { await update(ref(db, `notifications/${id}`), { read: true }) } catch { /* offline */ }
   },
 
   markAllRead: async () => {
-    const notifications = get().notifications.map(n => ({ ...n, read: true }))
-    set({ notifications, unread: 0 })
-    try { await axios.patch(`${API}/notifications/read-all`, {}, { timeout: 2000 }) } catch { /* offline */ }
+    const updates = {}
+    get().notifications.forEach(n => { updates[`notifications/${n.id}/read`] = true })
+    set({ notifications: get().notifications.map(n => ({ ...n, read: true })), unread: 0 })
+    try { await update(ref(db), updates) } catch { /* offline */ }
   },
 }))

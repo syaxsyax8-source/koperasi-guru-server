@@ -45,7 +45,7 @@ function useHideOnScroll() {
 export default function AdminLayout() {
   const user = useAuthStore(s => s.user)
   const logout = useAuthStore(s => s.logout)
-  const { notifications, unread, fetch: fetchNotifs, markRead, markAllRead } = useNotifStore()
+  const { notifications, unread, fetch: fetchNotifs, markRead, markAllRead, listenRealtime, stopListening } = useNotifStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -54,7 +54,11 @@ export default function AdminLayout() {
 
   useAdminSocket()
 
-  useEffect(() => { fetchNotifs() }, [fetchNotifs])
+  useEffect(() => {
+    // Firebase real-time listener — notif masuk otomatis saat guru checkout
+    listenRealtime()
+    return () => stopListening()
+  }, [])
 
   useEffect(() => {
     const handler = (e) => {
