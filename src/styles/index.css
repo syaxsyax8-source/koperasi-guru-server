@@ -1,0 +1,242 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #f0f9ff;
+    color: #1e293b;
+    overflow-x: hidden;
+    /* Prevent zoom on input focus on iOS */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Prevent iOS zoom on input focus */
+  input, select, textarea { font-size: 16px !important; }
+  @media (min-width: 640px) {
+    input, select, textarea { font-size: 14px !important; }
+  }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #f0f9ff; }
+  ::-webkit-scrollbar-thumb { background: #38bdf8; border-radius: 3px; }
+}
+
+@layer components {
+  /* ── GRADIENTS ───────────────────────────────── */
+  .bg-grad-main { background: linear-gradient(135deg, #06b6d4 0%, #38bdf8 50%, #7dd3fc 100%); }
+  .bg-grad-sidebar { background: linear-gradient(180deg, #0284c7 0%, #06b6d4 50%, #0891b2 100%); }
+  .bg-grad-card { background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%); }
+
+  /* ── SIDEBAR NAV ─────────────────────────────── */
+  .sidebar-nav-item {
+    @apply flex items-center gap-3 px-3 py-[11px] rounded-xl text-white/80 text-[13.5px] font-medium cursor-pointer transition-all duration-200;
+  }
+  .sidebar-nav-item:hover { @apply bg-white/15 text-white; }
+  .sidebar-nav-item.active { @apply bg-white text-cyan-700 font-semibold shadow-md; }
+
+  /* ── CARDS ───────────────────────────────────── */
+  .card {
+    @apply bg-white rounded-2xl p-4 shadow-sm border border-sky-100;
+  }
+  /* Desktop: lebih besar */
+  @media (min-width: 768px) {
+    .card { @apply p-5; }
+  }
+  .card-hover { @apply transition-all duration-200 hover:-translate-y-1 hover:shadow-md; }
+
+  /* ── BUTTONS ─────────────────────────────────── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-grad-main shadow-md shadow-cyan-200 active:scale-95 transition-all duration-200;
+    /* touch-friendly tap area */
+    min-height: 44px;
+  }
+  .btn-primary:hover { @apply -translate-y-0.5 shadow-lg shadow-cyan-300; }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-cyan-700 bg-white border-2 border-sky-300 active:scale-95 transition-all duration-200;
+    min-height: 44px;
+  }
+  .btn-secondary:hover { @apply bg-sky-50; }
+
+  .btn-success {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-500 active:scale-95 transition-all duration-200;
+    min-height: 40px;
+  }
+  .btn-success:hover { @apply bg-emerald-600; }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-red-500 active:scale-95 transition-all duration-200;
+    min-height: 40px;
+  }
+  .btn-danger:hover { @apply bg-red-600; }
+
+  .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg; min-height: 32px; }
+  .btn-lg { @apply px-6 py-3 text-base rounded-xl; min-height: 48px; }
+
+  /* ── FORM CONTROLS ───────────────────────────── */
+  .input {
+    @apply w-full px-3.5 py-3 rounded-xl border-[1.5px] border-sky-200 text-sm text-gray-800 bg-white outline-none transition-all duration-200 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 placeholder:text-gray-400;
+    min-height: 44px; /* touch-friendly */
+  }
+
+  /* ── BADGES ──────────────────────────────────── */
+  .badge { @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold; }
+  .badge-green { @apply bg-emerald-100 text-emerald-700; }
+  .badge-red { @apply bg-red-100 text-red-700; }
+  .badge-yellow { @apply bg-amber-100 text-amber-700; }
+  .badge-blue { @apply bg-blue-100 text-blue-700; }
+  .badge-cyan { @apply bg-cyan-100 text-cyan-700; }
+
+  /* ── PROGRESS ────────────────────────────────── */
+  .progress-track { @apply h-2 bg-sky-100 rounded-full overflow-hidden; }
+  .progress-fill { @apply h-full bg-grad-main rounded-full transition-all duration-700; }
+
+  /* ── TABLE (responsive scroll) ───────────────── */
+  .data-table { @apply w-full border-collapse; }
+  .data-table thead tr { @apply bg-sky-50; }
+  .data-table thead th {
+    @apply px-3 py-2.5 text-left text-[11px] font-bold text-sky-700 uppercase tracking-wider whitespace-nowrap;
+  }
+  @media (min-width: 768px) {
+    .data-table thead th { @apply px-4 py-3 text-xs; }
+  }
+  .data-table tbody tr { @apply border-b border-sky-50 hover:bg-sky-50/50 transition-colors duration-150; }
+  .data-table tbody td {
+    @apply px-3 py-2.5 text-[12px] text-gray-700;
+  }
+  @media (min-width: 768px) {
+    .data-table tbody td { @apply px-4 py-3 text-[13px]; }
+  }
+  .data-table tbody tr:last-child { @apply border-0; }
+
+  /* ── LIVE DOT ────────────────────────────────── */
+  .live-dot { @apply w-2 h-2 rounded-full bg-emerald-400 animate-pulse-dot; }
+
+  /* ── RESPONSIVE STAT GRID ────────────────────── */
+  /* Mobile: 2 kolom, Tablet: 2-4, Desktop: 4 */
+  .stats-grid-auto {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  @media (min-width: 640px) {
+    .stats-grid-auto { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  }
+  @media (min-width: 1024px) {
+    .stats-grid-auto { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  }
+
+  /* ── RESPONSIVE PRODUCT GRID ─────────────────── */
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  @media (min-width: 480px) {
+    .product-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  }
+  @media (min-width: 640px) {
+    .product-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  }
+  @media (min-width: 1024px) {
+    .product-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  }
+  @media (min-width: 1280px) {
+    .product-grid { grid-template-columns: repeat(5, 1fr); }
+  }
+
+  /* ── CHART RESPONSIVE ────────────────────────── */
+  .chart-responsive {
+    width: 100%;
+    height: 200px;
+  }
+  @media (min-width: 640px) {
+    .chart-responsive { height: 240px; }
+  }
+  @media (min-width: 1024px) {
+    .chart-responsive { height: 280px; }
+  }
+}
+
+/* ── MOBILE-SPECIFIC OVERRIDES ───────────────────── */
+@media (max-width: 639px) {
+  /* Quota hero teks lebih kecil */
+  .quota-hero-amount { font-size: 1.75rem !important; }
+
+  /* Card padding lebih kecil di mobile */
+  .card { padding: 14px !important; }
+
+  /* Sembunyikan kolom tabel yang tidak penting di mobile */
+  .hide-mobile { display: none !important; }
+
+  /* Full width buttons di mobile */
+  .btn-block-mobile { width: 100% !important; }
+
+  /* Stat card compact */
+  .stat-compact h3 { font-size: 1.1rem !important; }
+
+  /* Section title lebih kecil */
+  h1 { font-size: 1.15rem !important; }
+
+  /* Overflow scroll untuk tabel */
+  .table-scroll-mobile { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Bottom nav safe area untuk iPhone notch */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }
+}
+
+/* ── TABLET OVERRIDES (640px - 1023px) ───────────── */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .card { padding: 16px; }
+}
+
+/* ── BOTTOM NAVIGATION (mobile only) ──────────────── */
+.bottom-nav {
+  display: none;
+}
+@media (max-width: 1023px) {
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e0f2fe;
+    z-index: 60;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -4px 20px rgba(6, 182, 212, 0.1);
+    /* Auto-hide: transform ke bawah saat .nav-hidden */
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateY(0);
+  }
+  .bottom-nav.nav-hidden {
+    transform: translateY(110%);
+  }
+}
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 4px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.2s;
+  gap: 3px;
+  min-height: 56px;
+  text-decoration: none;
+}
+.bottom-nav-item .nav-icon { font-size: 20px; line-height: 1; }
+.bottom-nav-item.active { color: #0891b2; }
+.bottom-nav-item.active .nav-icon { transform: scale(1.15); }
+
+/* Extra bottom padding agar konten tidak tertutup bottom nav */
+@media (max-width: 1023px) {
+  .main-page-content { padding-bottom: 80px !important; }
+}
